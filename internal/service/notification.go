@@ -2,19 +2,22 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 
 	"github.com/karahan/notification-system/internal/domain"
+	"github.com/karahan/notification-system/internal/queue"
 	"github.com/karahan/notification-system/internal/repository"
 )
 
 type NotificationService struct {
-	repo repository.NotificationRepository
+	repo     repository.NotificationRepository
+	producer *queue.Producer
 }
 
-func NewNotificationService(repo repository.NotificationRepository) *NotificationService {
-	return &NotificationService{repo: repo}
+func NewNotificationService(repo repository.NotificationRepository, producer *queue.Producer) *NotificationService {
+	return &NotificationService{repo: repo, producer: producer}
 }
 
 func (s *NotificationService) Create(ctx context.Context, req *domain.CreateNotificationRequest) (*domain.Notification, error) {
@@ -36,6 +39,17 @@ func (s *NotificationService) Create(ctx context.Context, req *domain.CreateNoti
 	if err := s.repo.Create(ctx, n); err != nil {
 		return nil, err
 	}
+
+	if err := s.producer.Publish(ctx, n); err != nil {
+		slog.Error("failed to publish notification", "notification_id", n.ID, "error", err)
+		return n, nil
+	}
+	if err := s.repo.UpdateStatus(ctx, n.ID, domain.StatusQueued); err != nil {
+		slog.Error("failed to update status to queued", "notification_id", n.ID, "error", err)
+		return n, nil
+	}
+	n.Status = domain.StatusQueued
+
 	return n, nil
 }
 
@@ -64,6 +78,21 @@ func (s *NotificationService) CreateBatch(ctx context.Context, req *domain.Batch
 	if err := s.repo.CreateBatch(ctx, notifications); err != nil {
 		return uuid.Nil, nil, err
 	}
+
+	for _, n := range notifications {
+		if err := s.producer.Publish(ctx, n); err != nil {
+			slog.Error("failed to publish notification from batch",
+				"notification_id", n.ID, "batch_id", batchID, "error", err)
+			continue
+		}
+		if err := s.repo.UpdateStatus(ctx, n.ID, domain.StatusQueued); err != nil {
+			slog.Error("failed to update status to queued",
+				"notification_id", n.ID, "batch_id", batchID, "error", err)
+			continue
+		}
+		n.Status = domain.StatusQueued
+	}
+
 	return batchID, notifications, nil
 }
 

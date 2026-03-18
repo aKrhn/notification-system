@@ -16,6 +16,7 @@ import (
 	"github.com/karahan/notification-system/internal/api"
 	"github.com/karahan/notification-system/internal/api/handler"
 	"github.com/karahan/notification-system/internal/config"
+	"github.com/karahan/notification-system/internal/queue"
 	"github.com/karahan/notification-system/internal/repository/postgres"
 	"github.com/karahan/notification-system/internal/service"
 )
@@ -57,8 +58,28 @@ func main() {
 	}
 	slog.Info("database connected")
 
+	mqConn, err := queue.NewConnection(cfg.RabbitMQURL)
+	if err != nil {
+		slog.Error("failed to connect to rabbitmq", "error", err)
+		os.Exit(1)
+	}
+	defer mqConn.Close()
+
+	if err := mqConn.DeclareInfrastructure(); err != nil {
+		slog.Error("failed to declare rabbitmq infrastructure", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("rabbitmq infrastructure declared")
+
+	producer, err := queue.NewProducer(mqConn)
+	if err != nil {
+		slog.Error("failed to create producer", "error", err)
+		os.Exit(1)
+	}
+	defer producer.Close()
+
 	repo := postgres.New(db)
-	svc := service.NewNotificationService(repo)
+	svc := service.NewNotificationService(repo, producer)
 	nh := handler.NewNotificationHandler(svc)
 	hh := handler.NewHealthHandler(db)
 	router := api.NewRouter(nh, hh)
