@@ -47,6 +47,13 @@ type rateLimiterMetrics struct {
 	TokensRemaining float64 `json:"tokens_remaining"`
 }
 
+// Metrics godoc
+//	@Summary		System metrics
+//	@Description	Real-time metrics: queue depths, notification counts, circuit breaker states, rate limiter tokens
+//	@Tags			infrastructure
+//	@Produce		json
+//	@Success		200	{object}	metricsResponse
+//	@Router			/metrics [get]
 func (h *MetricsHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()

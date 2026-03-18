@@ -26,6 +26,14 @@ type healthResponse struct {
 	Checks map[string]string `json:"checks,omitempty"`
 }
 
+// Health godoc
+//	@Summary		Health check
+//	@Description	Check connectivity to PostgreSQL, RabbitMQ, and Redis
+//	@Tags			infrastructure
+//	@Produce		json
+//	@Success		200	{object}	healthResponse
+//	@Failure		503	{object}	healthResponse
+//	@Router			/health [get]
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()

@@ -55,7 +55,7 @@ type Notification struct {
 	SentAt            *time.Time      `json:"sent_at,omitempty"`
 	FailedAt          *time.Time      `json:"failed_at,omitempty"`
 	ErrorMessage      *string         `json:"error_message,omitempty"`
-	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	Metadata          json.RawMessage `json:"metadata,omitempty" swaggertype:"object"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
@@ -68,7 +68,7 @@ type CreateNotificationRequest struct {
 	Subject        *string         `json:"subject,omitempty"`
 	Priority       string          `json:"priority,omitempty"`
 	ScheduledAt    *time.Time      `json:"scheduled_at,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty" swaggertype:"object"`
 }
 
 type BatchCreateRequest struct {

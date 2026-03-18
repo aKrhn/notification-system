@@ -28,6 +28,11 @@ import (
 	"github.com/karahan/notification-system/internal/worker"
 )
 
+//	@title			Notification System API
+//	@version		1.0
+//	@description	Event-driven notification system that processes and delivers messages through SMS, Email, and Push channels.
+//	@host			localhost:8080
+//	@BasePath		/
 func main() {
 	cfg, err := config.Load()
 	if err != nil {

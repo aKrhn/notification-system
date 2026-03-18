@@ -21,6 +21,17 @@ func NewNotificationHandler(svc *service.NotificationService) *NotificationHandl
 	return &NotificationHandler{service: svc}
 }
 
+// Create godoc
+//	@Summary		Create a notification
+//	@Description	Create a single notification request
+//	@Tags			notifications
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		domain.CreateNotificationRequest	true	"Notification request"
+//	@Success		201		{object}	domain.Notification
+//	@Failure		400		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse
+//	@Router			/api/v1/notifications [post]
 func (h *NotificationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req domain.CreateNotificationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -43,6 +54,17 @@ type batchResponse struct {
 	Count         int                    `json:"count"`
 }
 
+// CreateBatch godoc
+//	@Summary		Create a batch of notifications
+//	@Description	Create up to 1000 notifications in a single request
+//	@Tags			notifications
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		domain.BatchCreateRequest	true	"Batch request"
+//	@Success		201		{object}	batchResponse
+//	@Failure		400		{object}	errorResponse
+//	@Failure		409		{object}	errorResponse
+//	@Router			/api/v1/notifications/batch [post]
 func (h *NotificationHandler) CreateBatch(w http.ResponseWriter, r *http.Request) {
 	var req domain.BatchCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -63,6 +85,16 @@ func (h *NotificationHandler) CreateBatch(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// GetByID godoc
+//	@Summary		Get notification by ID
+//	@Description	Retrieve a notification by its UUID
+//	@Tags			notifications
+//	@Produce		json
+//	@Param			id	path		string	true	"Notification ID (UUID)"
+//	@Success		200	{object}	domain.Notification
+//	@Failure		400	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Router			/api/v1/notifications/{id} [get]
 func (h *NotificationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUUIDParam(r, "id")
 	if err != nil {
@@ -79,6 +111,15 @@ func (h *NotificationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, notification)
 }
 
+// GetBatchStatus godoc
+//	@Summary		Get batch status
+//	@Description	Retrieve all notifications in a batch by batch ID
+//	@Tags			notifications
+//	@Produce		json
+//	@Param			id	path		string	true	"Batch ID (UUID)"
+//	@Success		200	{object}	batchResponse
+//	@Failure		400	{object}	errorResponse
+//	@Router			/api/v1/notifications/batch/{id} [get]
 func (h *NotificationHandler) GetBatchStatus(w http.ResponseWriter, r *http.Request) {
 	batchID, err := parseUUIDParam(r, "id")
 	if err != nil {
@@ -99,6 +140,17 @@ func (h *NotificationHandler) GetBatchStatus(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// Cancel godoc
+//	@Summary		Cancel a notification
+//	@Description	Cancel a pending or queued notification
+//	@Tags			notifications
+//	@Produce		json
+//	@Param			id	path		string	true	"Notification ID (UUID)"
+//	@Success		200	{object}	domain.Notification
+//	@Failure		400	{object}	errorResponse
+//	@Failure		404	{object}	errorResponse
+//	@Failure		409	{object}	errorResponse	"Notification cannot be cancelled"
+//	@Router			/api/v1/notifications/{id}/cancel [patch]
 func (h *NotificationHandler) Cancel(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUUIDParam(r, "id")
 	if err != nil {
@@ -125,6 +177,21 @@ type paginationInfo struct {
 	HasMore    bool   `json:"has_more"`
 }
 
+// List godoc
+//	@Summary		List notifications
+//	@Description	List notifications with filtering and cursor pagination
+//	@Tags			notifications
+//	@Produce		json
+//	@Param			status			query		string	false	"Filter by status (pending, queued, processing, sent, failed, cancelled)"
+//	@Param			channel			query		string	false	"Filter by channel (sms, email, push)"
+//	@Param			priority		query		string	false	"Filter by priority (high, normal, low)"
+//	@Param			created_after	query		string	false	"Filter by created_at >= (RFC3339 format)"
+//	@Param			created_before	query		string	false	"Filter by created_at <= (RFC3339 format)"
+//	@Param			cursor			query		string	false	"Pagination cursor from previous response"
+//	@Param			limit			query		int		false	"Page size (default 20, max 100)"
+//	@Success		200				{object}	listResponse
+//	@Failure		400				{object}	errorResponse
+//	@Router			/api/v1/notifications [get]
 func (h *NotificationHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 

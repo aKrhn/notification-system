@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	httpSwagger "github.com/swaggo/http-swagger"
 
+	_ "github.com/karahan/notification-system/docs"
 	"github.com/karahan/notification-system/internal/api/handler"
 	"github.com/karahan/notification-system/internal/api/middleware"
 )
@@ -19,6 +21,7 @@ func NewRouter(nh *handler.NotificationHandler, hh *handler.HealthHandler, mh *h
 
 	r.Get("/health", hh.Health)
 	r.Get("/metrics", mh.Metrics)
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(contentTypeJSON)

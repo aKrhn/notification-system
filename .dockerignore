@@ -3,7 +3,6 @@
 .claude/
 *.md
 *.pdf
-docs/
 scripts/
 migrations/
 docker-compose.yml

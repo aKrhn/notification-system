@@ -1,0 +1,385 @@
+basePath: /
+definitions:
+  domain.BatchCreateRequest:
+    properties:
+      notifications:
+        items:
+          $ref: '#/definitions/domain.CreateNotificationRequest'
+        type: array
+    type: object
+  domain.CreateNotificationRequest:
+    properties:
+      channel:
+        type: string
+      content:
+        type: string
+      idempotency_key:
+        type: string
+      metadata:
+        type: object
+      priority:
+        type: string
+      recipient:
+        type: string
+      scheduled_at:
+        type: string
+      subject:
+        type: string
+    type: object
+  domain.FieldError:
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+  domain.Notification:
+    properties:
+      batch_id:
+        type: string
+      channel:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      error_message:
+        type: string
+      failed_at:
+        type: string
+      id:
+        type: string
+      idempotency_key:
+        type: string
+      max_retries:
+        type: integer
+      metadata:
+        type: object
+      next_retry_at:
+        type: string
+      priority:
+        type: string
+      provider_message_id:
+        type: string
+      recipient:
+        type: string
+      retry_count:
+        type: integer
+      scheduled_at:
+        type: string
+      sent_at:
+        type: string
+      status:
+        type: string
+      subject:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handler.batchResponse:
+    properties:
+      batch_id:
+        type: string
+      count:
+        type: integer
+      notifications:
+        items:
+          $ref: '#/definitions/domain.Notification'
+        type: array
+    type: object
+  handler.errorResponse:
+    properties:
+      details:
+        items:
+          $ref: '#/definitions/domain.FieldError'
+        type: array
+      error:
+        type: string
+    type: object
+  handler.healthResponse:
+    properties:
+      checks:
+        additionalProperties:
+          type: string
+        type: object
+      status:
+        type: string
+    type: object
+  handler.listResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/domain.Notification'
+        type: array
+      pagination:
+        $ref: '#/definitions/handler.paginationInfo'
+    type: object
+  handler.metricsResponse:
+    properties:
+      circuit_breakers:
+        additionalProperties:
+          type: string
+        type: object
+      notifications:
+        additionalProperties:
+          additionalProperties:
+            type: integer
+          type: object
+        type: object
+      queues:
+        additionalProperties:
+          $ref: '#/definitions/handler.queueMetrics'
+        type: object
+      rate_limiters:
+        additionalProperties:
+          $ref: '#/definitions/handler.rateLimiterMetrics'
+        type: object
+      timestamp:
+        type: string
+    type: object
+  handler.paginationInfo:
+    properties:
+      has_more:
+        type: boolean
+      next_cursor:
+        type: string
+    type: object
+  handler.queueMetrics:
+    properties:
+      depth:
+        type: integer
+      dlq_depth:
+        type: integer
+    type: object
+  handler.rateLimiterMetrics:
+    properties:
+      tokens_remaining:
+        type: number
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Event-driven notification system that processes and delivers messages
+    through SMS, Email, and Push channels.
+  title: Notification System API
+  version: "1.0"
+paths:
+  /api/v1/notifications:
+    get:
+      description: List notifications with filtering and cursor pagination
+      parameters:
+      - description: Filter by status (pending, queued, processing, sent, failed,
+          cancelled)
+        in: query
+        name: status
+        type: string
+      - description: Filter by channel (sms, email, push)
+        in: query
+        name: channel
+        type: string
+      - description: Filter by priority (high, normal, low)
+        in: query
+        name: priority
+        type: string
+      - description: Filter by created_at >= (RFC3339 format)
+        in: query
+        name: created_after
+        type: string
+      - description: Filter by created_at <= (RFC3339 format)
+        in: query
+        name: created_before
+        type: string
+      - description: Pagination cursor from previous response
+        in: query
+        name: cursor
+        type: string
+      - description: Page size (default 20, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.listResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: List notifications
+      tags:
+      - notifications
+    post:
+      consumes:
+      - application/json
+      description: Create a single notification request
+      parameters:
+      - description: Notification request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.CreateNotificationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/domain.Notification'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: Create a notification
+      tags:
+      - notifications
+  /api/v1/notifications/{id}:
+    get:
+      description: Retrieve a notification by its UUID
+      parameters:
+      - description: Notification ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Notification'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: Get notification by ID
+      tags:
+      - notifications
+  /api/v1/notifications/{id}/cancel:
+    patch:
+      description: Cancel a pending or queued notification
+      parameters:
+      - description: Notification ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Notification'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Notification cannot be cancelled
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: Cancel a notification
+      tags:
+      - notifications
+  /api/v1/notifications/batch:
+    post:
+      consumes:
+      - application/json
+      description: Create up to 1000 notifications in a single request
+      parameters:
+      - description: Batch request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.BatchCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.batchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: Create a batch of notifications
+      tags:
+      - notifications
+  /api/v1/notifications/batch/{id}:
+    get:
+      description: Retrieve all notifications in a batch by batch ID
+      parameters:
+      - description: Batch ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.batchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: Get batch status
+      tags:
+      - notifications
+  /health:
+    get:
+      description: Check connectivity to PostgreSQL, RabbitMQ, and Redis
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.healthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handler.healthResponse'
+      summary: Health check
+      tags:
+      - infrastructure
+  /metrics:
+    get:
+      description: 'Real-time metrics: queue depths, notification counts, circuit
+        breaker states, rate limiter tokens'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.metricsResponse'
+      summary: System metrics
+      tags:
+      - infrastructure
+swagger: "2.0"
