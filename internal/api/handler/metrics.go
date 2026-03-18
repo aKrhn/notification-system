@@ -34,6 +34,7 @@ type metricsResponse struct {
 	Timestamp       time.Time                        `json:"timestamp"`
 	Queues          map[string]queueMetrics           `json:"queues"`
 	Notifications   map[string]map[string]int         `json:"notifications"`
+	Latency         map[string]latencyMetrics         `json:"latency"`
 	CircuitBreakers map[string]string                 `json:"circuit_breakers"`
 	RateLimiters    map[string]rateLimiterMetrics     `json:"rate_limiters"`
 }
@@ -41,6 +42,12 @@ type metricsResponse struct {
 type queueMetrics struct {
 	Depth    int `json:"depth"`
 	DLQDepth int `json:"dlq_depth"`
+}
+
+type latencyMetrics struct {
+	AvgSeconds float64 `json:"avg_seconds"`
+	MaxSeconds float64 `json:"max_seconds"`
+	MinSeconds float64 `json:"min_seconds"`
 }
 
 type rateLimiterMetrics struct {
@@ -62,6 +69,7 @@ func (h *MetricsHandler) Metrics(w http.ResponseWriter, r *http.Request) {
 		Timestamp:       time.Now().UTC(),
 		Queues:          h.getQueueDepths(),
 		Notifications:   h.getNotificationCounts(ctx),
+		Latency:         h.getLatency(ctx),
 		CircuitBreakers: h.getCircuitBreakerStates(),
 		RateLimiters:    h.getRateLimiterTokens(ctx),
 	}
@@ -174,6 +182,40 @@ func (h *MetricsHandler) getRateLimiterTokens(ctx context.Context) map[string]ra
 			continue
 		}
 		result[ch] = rateLimiterMetrics{TokensRemaining: tokens}
+	}
+
+	return result
+}
+
+func (h *MetricsHandler) getLatency(ctx context.Context) map[string]latencyMetrics {
+	result := map[string]latencyMetrics{}
+
+	rows, err := h.db.QueryContext(ctx, `
+		SELECT channel,
+			AVG(EXTRACT(EPOCH FROM (sent_at - created_at))) as avg_latency,
+			MAX(EXTRACT(EPOCH FROM (sent_at - created_at))) as max_latency,
+			MIN(EXTRACT(EPOCH FROM (sent_at - created_at))) as min_latency
+		FROM notifications
+		WHERE sent_at IS NOT NULL
+		GROUP BY channel`)
+	if err != nil {
+		slog.Error("metrics: failed to query latency", "error", err)
+		return result
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var channel string
+		var avg, max, min float64
+		if err := rows.Scan(&channel, &avg, &max, &min); err != nil {
+			slog.Error("metrics: failed to scan latency row", "error", err)
+			continue
+		}
+		result[channel] = latencyMetrics{
+			AvgSeconds: avg,
+			MaxSeconds: max,
+			MinSeconds: min,
+		}
 	}
 
 	return result
