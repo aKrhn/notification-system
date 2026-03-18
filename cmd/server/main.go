@@ -106,8 +106,6 @@ func main() {
 	repo := postgres.New(db)
 	svc := service.NewNotificationService(repo, producer)
 	nh := handler.NewNotificationHandler(svc)
-	hh := handler.NewHealthHandler(db)
-	router := api.NewRouter(nh, hh)
 
 	// Workers
 	webhookProvider := provider.NewWebhookProvider(cfg.WebhookURL)
@@ -121,12 +119,14 @@ func main() {
 		{domain.ChannelPush, queue.QueuePush},
 	}
 
+	var breakers []handler.ChannelBreaker
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var dispatcherWg sync.WaitGroup
 
 	for _, ch := range channels {
 		limiter := ratelimiter.New(redisClient, ch.name, cfg.RateLimit)
 		breaker := circuitbreaker.New()
+		breakers = append(breakers, handler.ChannelBreaker{Channel: ch.name, Breaker: breaker})
 		proc := worker.NewProcessor(repo, webhookProvider, limiter, breaker, cfg.MaxRetries)
 		d := worker.NewDispatcher(ch.name, ch.queueName, cfg.WorkerCount, mqConn, proc)
 
@@ -138,6 +138,11 @@ func main() {
 			}
 		}()
 	}
+
+	// Handlers + Router (after breakers are collected)
+	hh := handler.NewHealthHandler(db, redisClient, mqConn)
+	mh := handler.NewMetricsHandler(db, redisClient, mqConn, breakers)
+	router := api.NewRouter(nh, hh, mh)
 
 	// HTTP server
 	srv := &http.Server{

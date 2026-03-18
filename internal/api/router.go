@@ -11,13 +11,14 @@ import (
 	"github.com/karahan/notification-system/internal/api/middleware"
 )
 
-func NewRouter(nh *handler.NotificationHandler, hh *handler.HealthHandler) chi.Router {
+func NewRouter(nh *handler.NotificationHandler, hh *handler.HealthHandler, mh *handler.MetricsHandler) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Correlation)
 	r.Use(middleware.Logging)
 
 	r.Get("/health", hh.Health)
+	r.Get("/metrics", mh.Metrics)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(contentTypeJSON)
