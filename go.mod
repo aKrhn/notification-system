@@ -11,6 +11,7 @@ require (
 require github.com/go-chi/chi/v5 v5.2.5
 
 require (
+	github.com/coder/websocket v1.8.14
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/stretchr/testify v1.7.0

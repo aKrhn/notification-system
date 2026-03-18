@@ -21,6 +21,7 @@ import (
 	"github.com/karahan/notification-system/internal/config"
 	"github.com/karahan/notification-system/internal/domain"
 	"github.com/karahan/notification-system/internal/provider"
+	"github.com/karahan/notification-system/internal/pubsub"
 	"github.com/karahan/notification-system/internal/queue"
 	"github.com/karahan/notification-system/internal/ratelimiter"
 	"github.com/karahan/notification-system/internal/repository/postgres"
@@ -113,6 +114,9 @@ func main() {
 	svc := service.NewNotificationService(repo, producer)
 	nh := handler.NewNotificationHandler(svc)
 
+	// Pub/Sub for WebSocket status updates
+	ps := pubsub.New(redisClient)
+
 	// Workers
 	webhookProvider := provider.NewWebhookProvider(cfg.WebhookURL)
 
@@ -133,7 +137,7 @@ func main() {
 		limiter := ratelimiter.New(redisClient, ch.name, cfg.RateLimit)
 		breaker := circuitbreaker.New()
 		breakers = append(breakers, handler.ChannelBreaker{Channel: ch.name, Breaker: breaker})
-		proc := worker.NewProcessor(repo, webhookProvider, limiter, breaker, cfg.MaxRetries)
+		proc := worker.NewProcessor(repo, webhookProvider, limiter, breaker, ps, cfg.MaxRetries)
 		d := worker.NewDispatcher(ch.name, ch.queueName, cfg.WorkerCount, mqConn, proc)
 
 		dispatcherWg.Add(1)
@@ -152,7 +156,8 @@ func main() {
 	// Handlers + Router (after breakers are collected)
 	hh := handler.NewHealthHandler(db, redisClient, mqConn)
 	mh := handler.NewMetricsHandler(db, redisClient, mqConn, breakers)
-	router := api.NewRouter(nh, hh, mh)
+	wsh := handler.NewWebSocketHandler(ps)
+	router := api.NewRouter(nh, hh, mh, wsh)
 
 	// HTTP server
 	srv := &http.Server{

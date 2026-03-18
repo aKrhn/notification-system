@@ -15,6 +15,7 @@ import (
 	"github.com/karahan/notification-system/internal/circuitbreaker"
 	"github.com/karahan/notification-system/internal/domain"
 	"github.com/karahan/notification-system/internal/provider"
+	"github.com/karahan/notification-system/internal/pubsub"
 	"github.com/karahan/notification-system/internal/ratelimiter"
 	"github.com/karahan/notification-system/internal/repository"
 )
@@ -34,6 +35,7 @@ type Processor struct {
 	provider   *provider.WebhookProvider
 	limiter    *ratelimiter.RateLimiter
 	breaker    *circuitbreaker.CircuitBreaker
+	ps         *pubsub.PubSub
 	maxRetries int
 }
 
@@ -42,6 +44,7 @@ func NewProcessor(
 	prov *provider.WebhookProvider,
 	limiter *ratelimiter.RateLimiter,
 	breaker *circuitbreaker.CircuitBreaker,
+	ps *pubsub.PubSub,
 	maxRetries int,
 ) *Processor {
 	return &Processor{
@@ -49,6 +52,7 @@ func NewProcessor(
 		provider:   prov,
 		limiter:    limiter,
 		breaker:    breaker,
+		ps:         ps,
 		maxRetries: maxRetries,
 	}
 }
@@ -93,6 +97,8 @@ func (p *Processor) Process(ctx context.Context, delivery amqp.Delivery) {
 		return
 	}
 
+	p.ps.Publish(ctx, pubsub.NewStatusUpdate(id.String(), domain.StatusProcessing, msg.Channel))
+
 	// Circuit breaker check
 	if !p.breaker.Allow() {
 		slog.Warn("circuit breaker open, requeueing", "id", id, "channel", msg.Channel)
@@ -122,6 +128,7 @@ func (p *Processor) Process(ctx context.Context, delivery amqp.Delivery) {
 			slog.Error("failed to update to sent", "id", id, "error", updateErr)
 		}
 		delivery.Ack(false)
+		p.ps.Publish(ctx, pubsub.NewStatusUpdate(id.String(), domain.StatusSent, msg.Channel))
 		slog.Info("notification sent", "id", id, "channel", msg.Channel, "provider_message_id", providerMsgID)
 		return
 	}
@@ -144,6 +151,7 @@ func (p *Processor) Process(ctx context.Context, delivery amqp.Delivery) {
 				slog.Error("failed to update to failed", "id", id, "error", updateErr)
 			}
 			delivery.Nack(false, false) // no requeue → DLQ
+			p.ps.Publish(ctx, pubsub.NewStatusUpdate(id.String(), domain.StatusFailed, msg.Channel))
 			slog.Error("notification failed after max retries", "id", id, "attempts", notification.RetryCount, "error", retryErr.Message)
 		}
 		return
@@ -158,6 +166,7 @@ func (p *Processor) Process(ctx context.Context, delivery amqp.Delivery) {
 			slog.Error("failed to update to failed", "id", id, "error", updateErr)
 		}
 		delivery.Nack(false, false) // no requeue → DLQ
+		p.ps.Publish(ctx, pubsub.NewStatusUpdate(id.String(), domain.StatusFailed, msg.Channel))
 		slog.Error("notification permanently failed", "id", id, "status_code", nonRetryErr.StatusCode, "error", nonRetryErr.Message)
 		return
 	}
