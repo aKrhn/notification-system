@@ -154,6 +154,10 @@ func (m *mockRepo) IncrementRetry(ctx context.Context, id uuid.UUID, nextRetryAt
 	return nil
 }
 
+func (m *mockRepo) GetScheduledReady(ctx context.Context, limit int) ([]*domain.Notification, error) {
+	return []*domain.Notification{}, nil
+}
+
 func (m *mockRepo) Cancel(ctx context.Context, id uuid.UUID) error {
 	n, ok := m.notifications[id]
 	if !ok {

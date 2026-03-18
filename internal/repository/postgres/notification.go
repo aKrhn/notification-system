@@ -401,3 +401,30 @@ func (r *PostgresRepository) Cancel(ctx context.Context, id uuid.UUID) error {
 	}
 	return nil
 }
+
+func (r *PostgresRepository) GetScheduledReady(ctx context.Context, limit int) ([]*domain.Notification, error) {
+	query := `SELECT ` + notificationColumns + ` FROM notifications WHERE status = 'pending' AND scheduled_at IS NOT NULL AND scheduled_at <= NOW() ORDER BY scheduled_at ASC LIMIT $1`
+
+	rows, err := r.db.QueryContext(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("querying scheduled notifications: %w", err)
+	}
+	defer rows.Close()
+
+	var notifications []*domain.Notification
+	for rows.Next() {
+		n, err := scanNotification(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scanning notification: %w", err)
+		}
+		notifications = append(notifications, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating rows: %w", err)
+	}
+
+	if notifications == nil {
+		notifications = []*domain.Notification{}
+	}
+	return notifications, nil
+}

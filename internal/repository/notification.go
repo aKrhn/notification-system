@@ -22,6 +22,7 @@ type NotificationRepository interface {
 	UpdateFailed(ctx context.Context, id uuid.UUID, errorMessage string) error
 	IncrementRetry(ctx context.Context, id uuid.UUID, nextRetryAt time.Time) error
 	Cancel(ctx context.Context, id uuid.UUID) error
+	GetScheduledReady(ctx context.Context, limit int) ([]*domain.Notification, error)
 }
 
 type ListFilters struct {

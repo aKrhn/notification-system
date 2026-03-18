@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -38,6 +39,11 @@ func (s *NotificationService) Create(ctx context.Context, req *domain.CreateNoti
 
 	if err := s.repo.Create(ctx, n); err != nil {
 		return nil, err
+	}
+
+	// Skip queue publish for future-scheduled notifications
+	if n.ScheduledAt != nil && n.ScheduledAt.After(time.Now()) {
+		return n, nil
 	}
 
 	if err := s.producer.Publish(ctx, n); err != nil {
@@ -80,6 +86,10 @@ func (s *NotificationService) CreateBatch(ctx context.Context, req *domain.Batch
 	}
 
 	for _, n := range notifications {
+		// Skip queue publish for future-scheduled notifications
+		if n.ScheduledAt != nil && n.ScheduledAt.After(time.Now()) {
+			continue
+		}
 		if err := s.producer.Publish(ctx, n); err != nil {
 			slog.Error("failed to publish notification from batch",
 				"notification_id", n.ID, "batch_id", batchID, "error", err)

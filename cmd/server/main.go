@@ -24,6 +24,7 @@ import (
 	"github.com/karahan/notification-system/internal/queue"
 	"github.com/karahan/notification-system/internal/ratelimiter"
 	"github.com/karahan/notification-system/internal/repository/postgres"
+	"github.com/karahan/notification-system/internal/scheduler"
 	"github.com/karahan/notification-system/internal/service"
 	"github.com/karahan/notification-system/internal/worker"
 )
@@ -143,6 +144,10 @@ func main() {
 			}
 		}()
 	}
+
+	// Scheduler for future-dated notifications
+	sched := scheduler.New(repo, producer, 5*time.Second)
+	go sched.Start(workerCtx)
 
 	// Handlers + Router (after breakers are collected)
 	hh := handler.NewHealthHandler(db, redisClient, mqConn)
