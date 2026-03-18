@@ -43,16 +43,15 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # migrate service added in Phase 2 when migration files exist
-  # migrate:
-  #   image: migrate/migrate:v4.18.1
-  #   volumes:
-  #     - ./migrations:/migrations
-  #   command: ["-path", "/migrations", "-database", "postgres://notifications:notifications@postgres:5432/notifications?sslmode=disable", "up"]
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   restart: on-failure
+  migrate:
+    image: migrate/migrate:v4.18.1
+    volumes:
+      - ./migrations:/migrations
+    command: ["-path", "/migrations", "-database", "postgres://notifications:notifications@postgres:5432/notifications?sslmode=disable", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
 
   app:
     build:
@@ -77,6 +76,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:
