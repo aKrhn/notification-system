@@ -1,0 +1,14 @@
+.git
+.gitignore
+.claude/
+*.md
+*.pdf
+docs/
+scripts/
+migrations/
+docker-compose.yml
+Makefile
+LICENSE
+.env*
+coverage.*
+*.test
