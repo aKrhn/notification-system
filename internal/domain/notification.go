@@ -61,14 +61,16 @@ type Notification struct {
 }
 
 type CreateNotificationRequest struct {
-	IdempotencyKey *string         `json:"idempotency_key,omitempty"`
-	Recipient      string          `json:"recipient"`
-	Channel        string          `json:"channel"`
-	Content        string          `json:"content"`
-	Subject        *string         `json:"subject,omitempty"`
-	Priority       string          `json:"priority,omitempty"`
-	ScheduledAt    *time.Time      `json:"scheduled_at,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty" swaggertype:"object"`
+	IdempotencyKey *string           `json:"idempotency_key,omitempty"`
+	Recipient      string            `json:"recipient"`
+	Channel        string            `json:"channel"`
+	Content        string            `json:"content"`
+	Subject        *string           `json:"subject,omitempty"`
+	Priority       string            `json:"priority,omitempty"`
+	ScheduledAt    *time.Time        `json:"scheduled_at,omitempty"`
+	Metadata       json.RawMessage   `json:"metadata,omitempty" swaggertype:"object"`
+	TemplateID     *uuid.UUID        `json:"template_id,omitempty"`
+	Variables      map[string]string `json:"variables,omitempty"`
 }
 
 type BatchCreateRequest struct {
@@ -88,9 +90,9 @@ func (r *CreateNotificationRequest) Validate() error {
 		errs = append(errs, FieldError{Field: "channel", Message: "must be one of: sms, email, push"})
 	}
 
-	if r.Content == "" {
-		errs = append(errs, FieldError{Field: "content", Message: "is required"})
-	} else if r.Channel != "" && isValidChannel(r.Channel) {
+	if r.Content == "" && r.TemplateID == nil {
+		errs = append(errs, FieldError{Field: "content", Message: "is required (or provide template_id)"})
+	} else if r.Content != "" && r.Channel != "" && isValidChannel(r.Channel) {
 		if err := validateContentLength(r.Channel, r.Content); err != "" {
 			errs = append(errs, FieldError{Field: "content", Message: err})
 		}

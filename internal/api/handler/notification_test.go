@@ -175,7 +175,7 @@ func (m *mockRepo) Cancel(ctx context.Context, id uuid.UUID) error {
 func setupTestRouter(repo *mockRepo) chi.Router {
 	// Service with nil producer — Create/CreateBatch will panic on publish
 	// We test read paths and validation errors that return before publish
-	svc := service.NewNotificationService(repo, nil)
+	svc := service.NewNotificationService(repo, nil, nil)
 	nh := NewNotificationHandler(svc)
 
 	r := chi.NewRouter()

@@ -13,17 +13,31 @@ import (
 )
 
 type NotificationService struct {
-	repo     repository.NotificationRepository
-	producer *queue.Producer
+	repo         repository.NotificationRepository
+	templateRepo repository.TemplateRepository
+	producer     *queue.Producer
 }
 
-func NewNotificationService(repo repository.NotificationRepository, producer *queue.Producer) *NotificationService {
-	return &NotificationService{repo: repo, producer: producer}
+func NewNotificationService(repo repository.NotificationRepository, templateRepo repository.TemplateRepository, producer *queue.Producer) *NotificationService {
+	return &NotificationService{repo: repo, templateRepo: templateRepo, producer: producer}
 }
 
 func (s *NotificationService) Create(ctx context.Context, req *domain.CreateNotificationRequest) (*domain.Notification, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err
+	}
+
+	// Resolve template if provided
+	if req.TemplateID != nil {
+		tmpl, err := s.templateRepo.GetByID(ctx, *req.TemplateID)
+		if err != nil {
+			return nil, err
+		}
+		content, subject := tmpl.Render(req.Variables)
+		req.Content = content
+		if subject != nil {
+			req.Subject = subject
+		}
 	}
 
 	n := &domain.Notification{

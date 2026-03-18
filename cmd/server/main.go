@@ -111,7 +111,8 @@ func main() {
 
 	// Service + API
 	repo := postgres.New(db)
-	svc := service.NewNotificationService(repo, producer)
+	templateRepo := postgres.NewTemplateRepository(db)
+	svc := service.NewNotificationService(repo, templateRepo, producer)
 	nh := handler.NewNotificationHandler(svc)
 
 	// Pub/Sub for WebSocket status updates
@@ -157,7 +158,8 @@ func main() {
 	hh := handler.NewHealthHandler(db, redisClient, mqConn)
 	mh := handler.NewMetricsHandler(db, redisClient, mqConn, breakers)
 	wsh := handler.NewWebSocketHandler(ps)
-	router := api.NewRouter(nh, hh, mh, wsh)
+	th := handler.NewTemplateHandler(templateRepo)
+	router := api.NewRouter(nh, hh, mh, wsh, th)
 
 	// HTTP server
 	srv := &http.Server{

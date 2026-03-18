@@ -13,7 +13,7 @@ import (
 	"github.com/karahan/notification-system/internal/api/middleware"
 )
 
-func NewRouter(nh *handler.NotificationHandler, hh *handler.HealthHandler, mh *handler.MetricsHandler, wsh *handler.WebSocketHandler) chi.Router {
+func NewRouter(nh *handler.NotificationHandler, hh *handler.HealthHandler, mh *handler.MetricsHandler, wsh *handler.WebSocketHandler, th *handler.TemplateHandler) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Correlation)
@@ -33,6 +33,10 @@ func NewRouter(nh *handler.NotificationHandler, hh *handler.HealthHandler, mh *h
 		r.Get("/notifications/{id}", nh.GetByID)
 		r.Get("/notifications/batch/{id}", nh.GetBatchStatus)
 		r.Patch("/notifications/{id}/cancel", nh.Cancel)
+
+		r.Post("/templates", th.Create)
+		r.Get("/templates", th.List)
+		r.Get("/templates/{id}", th.GetByID)
 	})
 
 	return r
