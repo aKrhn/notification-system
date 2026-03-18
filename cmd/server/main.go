@@ -8,17 +8,24 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/karahan/notification-system/internal/api"
 	"github.com/karahan/notification-system/internal/api/handler"
+	"github.com/karahan/notification-system/internal/circuitbreaker"
 	"github.com/karahan/notification-system/internal/config"
+	"github.com/karahan/notification-system/internal/domain"
+	"github.com/karahan/notification-system/internal/provider"
 	"github.com/karahan/notification-system/internal/queue"
+	"github.com/karahan/notification-system/internal/ratelimiter"
 	"github.com/karahan/notification-system/internal/repository/postgres"
 	"github.com/karahan/notification-system/internal/service"
+	"github.com/karahan/notification-system/internal/worker"
 )
 
 func main() {
@@ -78,12 +85,61 @@ func main() {
 	}
 	defer producer.Close()
 
+	// Redis
+	redisOpts, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		slog.Error("failed to parse redis URL", "error", err)
+		os.Exit(1)
+	}
+	redisClient := redis.NewClient(redisOpts)
+	defer redisClient.Close()
+
+	redisPingCtx, redisPingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer redisPingCancel()
+	if err := redisClient.Ping(redisPingCtx).Err(); err != nil {
+		slog.Error("failed to ping redis", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("redis connected")
+
+	// Service + API
 	repo := postgres.New(db)
 	svc := service.NewNotificationService(repo, producer)
 	nh := handler.NewNotificationHandler(svc)
 	hh := handler.NewHealthHandler(db)
 	router := api.NewRouter(nh, hh)
 
+	// Workers
+	webhookProvider := provider.NewWebhookProvider(cfg.WebhookURL)
+
+	channels := []struct {
+		name      string
+		queueName string
+	}{
+		{domain.ChannelSMS, queue.QueueSMS},
+		{domain.ChannelEmail, queue.QueueEmail},
+		{domain.ChannelPush, queue.QueuePush},
+	}
+
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	var dispatcherWg sync.WaitGroup
+
+	for _, ch := range channels {
+		limiter := ratelimiter.New(redisClient, ch.name, cfg.RateLimit)
+		breaker := circuitbreaker.New()
+		proc := worker.NewProcessor(repo, webhookProvider, limiter, breaker, cfg.MaxRetries)
+		d := worker.NewDispatcher(ch.name, ch.queueName, cfg.WorkerCount, mqConn, proc)
+
+		dispatcherWg.Add(1)
+		go func() {
+			defer dispatcherWg.Done()
+			if err := d.Start(workerCtx); err != nil {
+				slog.Error("dispatcher error", "channel", d.Channel(), "error", err)
+			}
+		}()
+	}
+
+	// HTTP server
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router,
@@ -97,12 +153,17 @@ func main() {
 		}
 	}()
 
+	// Graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	<-ctx.Done()
 
 	slog.Info("shutting down", "reason", ctx.Err())
+
+	workerCancel()
+	dispatcherWg.Wait()
+	slog.Info("workers stopped")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()

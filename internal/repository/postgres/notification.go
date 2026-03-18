@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -317,6 +318,54 @@ func (r *PostgresRepository) UpdateStatus(ctx context.Context, id uuid.UUID, sta
 		return fmt.Errorf("updating status: %w", err)
 	}
 
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if rows == 0 {
+		return &domain.ErrNotFound{Entity: "notification", ID: id.String()}
+	}
+	return nil
+}
+
+func (r *PostgresRepository) UpdateSent(ctx context.Context, id uuid.UUID, providerMessageID string) error {
+	query := `UPDATE notifications SET status = 'sent', sent_at = NOW(), provider_message_id = $1 WHERE id = $2`
+	res, err := r.db.ExecContext(ctx, query, providerMessageID, id)
+	if err != nil {
+		return fmt.Errorf("updating to sent: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if rows == 0 {
+		return &domain.ErrNotFound{Entity: "notification", ID: id.String()}
+	}
+	return nil
+}
+
+func (r *PostgresRepository) UpdateFailed(ctx context.Context, id uuid.UUID, errorMessage string) error {
+	query := `UPDATE notifications SET status = 'failed', failed_at = NOW(), error_message = $1 WHERE id = $2`
+	res, err := r.db.ExecContext(ctx, query, errorMessage, id)
+	if err != nil {
+		return fmt.Errorf("updating to failed: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if rows == 0 {
+		return &domain.ErrNotFound{Entity: "notification", ID: id.String()}
+	}
+	return nil
+}
+
+func (r *PostgresRepository) IncrementRetry(ctx context.Context, id uuid.UUID, nextRetryAt time.Time) error {
+	query := `UPDATE notifications SET retry_count = retry_count + 1, next_retry_at = $1 WHERE id = $2`
+	res, err := r.db.ExecContext(ctx, query, nextRetryAt, id)
+	if err != nil {
+		return fmt.Errorf("incrementing retry: %w", err)
+	}
 	rows, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("checking rows affected: %w", err)

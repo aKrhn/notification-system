@@ -18,6 +18,9 @@ type NotificationRepository interface {
 	GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*domain.Notification, error)
 	List(ctx context.Context, filters ListFilters, cursor *Cursor, limit int) (*ListResult, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) error
+	UpdateSent(ctx context.Context, id uuid.UUID, providerMessageID string) error
+	UpdateFailed(ctx context.Context, id uuid.UUID, errorMessage string) error
+	IncrementRetry(ctx context.Context, id uuid.UUID, nextRetryAt time.Time) error
 	Cancel(ctx context.Context, id uuid.UUID) error
 }
 
