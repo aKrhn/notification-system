@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,12 +14,39 @@ import (
 	"github.com/karahan/notification-system/internal/service"
 )
 
+// Backpressure thresholds per priority level.
+// Under high queue depth, low-priority requests are rejected first,
+// preserving capacity for critical notifications like OTPs.
+const (
+	ThresholdLow    = 5000
+	ThresholdNormal = 8000
+	ThresholdHigh   = 10000
+)
+
+// QueueDepth is updated by a background goroutine (see main.go).
+// Handlers read it via atomic.LoadInt32 — O(1), no network call.
+var QueueDepth atomic.Int32
+
 type NotificationHandler struct {
 	service *service.NotificationService
 }
 
 func NewNotificationHandler(svc *service.NotificationService) *NotificationHandler {
 	return &NotificationHandler{service: svc}
+}
+
+func checkBackpressure(priority string) bool {
+	depth := int(QueueDepth.Load())
+	switch priority {
+	case domain.PriorityLow:
+		return depth > ThresholdLow
+	case domain.PriorityNormal:
+		return depth > ThresholdNormal
+	case domain.PriorityHigh:
+		return depth > ThresholdHigh
+	default:
+		return depth > ThresholdNormal
+	}
 }
 
 // Create godoc
@@ -36,6 +64,20 @@ func (h *NotificationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req domain.CreateNotificationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return
+	}
+
+	// Backpressure: reject under high queue depth, prioritizing critical notifications
+	priority := req.Priority
+	if priority == "" {
+		priority = domain.PriorityNormal
+	}
+	if checkBackpressure(priority) {
+		w.Header().Set("Retry-After", "30")
+		w.Header().Set("X-Queue-Depth", strconv.Itoa(int(QueueDepth.Load())))
+		respondJSON(w, http.StatusTooManyRequests, map[string]string{
+			"error": "system under high load, retry later",
+		})
 		return
 	}
 

@@ -118,6 +118,28 @@ func main() {
 	// Pub/Sub for WebSocket status updates
 	ps := pubsub.New(redisClient)
 
+	// Background queue depth poller for backpressure
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			ch, err := mqConn.Channel()
+			if err != nil {
+				continue
+			}
+			total := 0
+			for _, qName := range []string{queue.QueueSMS, queue.QueueEmail, queue.QueuePush} {
+				q, err := ch.QueueDeclarePassive(qName, true, false, false, false, nil)
+				if err != nil {
+					break
+				}
+				total += q.Messages
+			}
+			ch.Close()
+			handler.QueueDepth.Store(int32(total))
+		}
+	}()
+
 	// Workers
 	webhookProvider := provider.NewWebhookProvider(cfg.WebhookURL)
 

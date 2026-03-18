@@ -1,4 +1,4 @@
-.PHONY: build run test test-short test-race lint swagger \
+.PHONY: build run test test-short test-race test-e2e lint swagger \
         migrate-up migrate-down migrate-create \
         docker-up docker-down docker-build
 
@@ -20,6 +20,9 @@ test-short:
 
 test-race:
 	go test -race ./...
+
+test-e2e:
+	./scripts/e2e_test.sh
 
 # ---- Linting ----
 

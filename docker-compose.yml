@@ -64,7 +64,7 @@ services:
       DATABASE_URL: "postgres://notifications:notifications@postgres:5432/notifications?sslmode=disable"
       RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
       REDIS_URL: "redis://redis:6379/0"
-      WEBHOOK_URL: "https://webhook.site/test"
+      WEBHOOK_URL: "https://webhook.site/test"  # Replace with your own webhook.site URL for delivery tracking
       WORKER_COUNT: "3"
       MAX_RETRIES: "3"
       RATE_LIMIT: "100"
